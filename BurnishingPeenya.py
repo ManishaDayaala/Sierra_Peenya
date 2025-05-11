@@ -227,169 +227,81 @@ if st.button('Preprocess Data'):
 
 ##########################  Classification ###############################
 
-import tensorflow as tf
-import random
+# 🚀 Install if not already done:
+# pip install pandas numpy scikit-learn xgboost imbalanced-learn tensorflow joblib streamlit openpyxl
+
 import streamlit as st
-import os
-import pandas as pd
 import numpy as np
+import pandas as pd
 import joblib
+import tensorflow as tf
+import os
+import random
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report
 from imblearn.over_sampling import SMOTE
-import xgboost as xgb
-from scikeras.wrappers import KerasClassifier
+from xgboost import XGBClassifier
 from sklearn.ensemble import VotingClassifier
+from scikeras.wrappers import KerasClassifier
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Reshape
 
-# Set random seed for reproducibility
+# ---------------------
+# ⚙️ Set random seed
+# ---------------------
 def set_random_seed(seed=42):
     np.random.seed(seed)
-    random.seed(seed)
     tf.random.set_seed(seed)
-
-# Define the training function
-def train_ensemble_model(training_file_path, model_folder_path):
-    def load_data(file_path):
-        df = pd.read_excel(file_path)
-        X = df.iloc[:, 3:-1].values  # Features (assuming columns 3 to second last)
-        y = df['Code'].values  # Target column
-        return X, y
-
-    def preprocess_data(X, y):
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        
-        # Save the scaler
-        joblib.dump(scaler, os.path.join(model_folder_path, "scaler_burnishingPeenya.pkl"))
-
-        # Split into training and validation sets
-        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.01, random_state=42, shuffle=True)
-
-        # Check class distribution
-        unique_classes, class_counts = np.unique(y_train, return_counts=True)
-        min_class_samples = min(class_counts)  # Minimum class sample count
-
-        # Adjust `n_neighbors` to avoid errors in SMOTE
-        n_neighbors = min(5, min_class_samples - 1) if min_class_samples > 1 else 1
-
-        try:
-            smote = SMOTE(random_state=42, k_neighbors=n_neighbors)
-            X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
-        except ValueError as e:
-            st.warning(f"SMOTE failed: {e}. Using original training data instead.")
-            X_resampled, y_resampled = X_train, y_train  # Fall back to original data if SMOTE fails
-        
-        return X_resampled, X_test, y_resampled, y_test
+    random.seed(seed)
 
 
-    def build_nn_model():
-        model = Sequential()
-        model.add(Dense(128, activation='relu', input_shape=(X_resampled.shape[1],)))
-        model.add(Dropout(0.2))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dropout(0.2))
-        model.add(Dense(32, activation='relu'))
-        model.add(Dense(2, activation='softmax'))  # 4 output units for the 4 classes
-        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])  # Use sparse_categorical_crossentropy
-        return model
 
-    # Set random seed
+# ---------------------
+# 🔮 Prediction Function
+# ---------------------
+def predict_future_breakdown(test_file_path, model_path):
     set_random_seed()
+    df = pd.read_excel(test_file_path)
+    X = df.iloc[:, 3:-1].values  # All features
 
-    # Load and preprocess data
-    X, y = load_data(training_file_path)
-    X_resampled, X_test, y_resampled, y_test = preprocess_data(X, y)
+    scaler = joblib.load(os.path.join(model_path, "scaler_shifted.pkl"))
+    X_scaled = scaler.transform(X)
 
-    # Class weights for Keras model
-    class_weights = {0: 0.0, 1: 500 }
+    model = joblib.load(os.path.join(model_path, "ensemble_shifted_model.pkl"))
+    preds = model.predict(X_scaled)
 
-    # Build Keras model
-    nn_model = KerasClassifier(model=build_nn_model, epochs=100, batch_size=32, verbose=0, class_weight=class_weights)
+    labels = ["Code 0", "Code 1"]
+    result_labels = [labels[p] for p in preds]
 
-    # Calculate sample weights for XGBoost
-    sample_weights = np.array([class_weights[int(label)] for label in y_resampled])
+    non_zero = [lbl for lbl in result_labels if lbl != "Code 0"]
+    if non_zero:
+        return f"🚨 Potential Breakdown(s): {', '.join(set(non_zero))}"
+    else:
+        return "✅ No BD predicted"
 
-    # XGBoost model
-    xgb_model = xgb.XGBClassifier(objective='multi:softmax', num_class=2, eval_metric='mlogloss', sample_weight=sample_weights, random_state=42)
-
-    # Ensemble model
-    ensemble_model = VotingClassifier(estimators=[
-        ('xgb', xgb_model),
-        ('nn', nn_model)
-    ], voting='hard')
-
-    # Train the ensemble model
-    ensemble_model.fit(X_resampled, y_resampled)
-
-    # Save the trained model
-    joblib.dump(ensemble_model, os.path.join(model_folder_path, "ensemble_burnishingPeenya.pkl"))
-    st.success("Ensemble model training completed and saved!")
-
-# Define the prediction function
-def predict_ensemble(test_file_path, model_folder_path):
-    def load_test_data(file_path):
-        df = pd.read_excel(file_path)
-        X_test = df.iloc[:, 3:-1].values
-        return df, X_test
-
-    def preprocess_test_data(X_test):
-        scaler = joblib.load(os.path.join(model_folder_path, "scaler_burnishingPeenya.pkl"))
-        X_test_scaled = scaler.transform(X_test)
-        return X_test_scaled
-
-    def predict(X_test_scaled):
-        nn_model = joblib.load(os.path.join(model_folder_path, "ensemble_burnishingPeenya.pkl"))
-        predictions = nn_model.predict(X_test_scaled)
-        return predictions
-
-    set_random_seed()
-
-    try:
-        df, X_test = load_test_data(test_file_path)
-        X_test_scaled = preprocess_test_data(X_test)
-        predictions = predict(X_test_scaled)
-
-        breakdown_codes = ["Code 0", "Code 1"]
-        predicted_labels = [breakdown_codes[p] for p in predictions]
-
-        # Check if any non-zero breakdown code (Code 1, 2, or 3) is predicted
-        non_zero_codes = [code for code in predicted_labels if "Code 1" in code]
-        
-        if non_zero_codes:
-            unique_non_zero_codes = set(non_zero_codes)
-            return f"Breakdown of {', '.join(unique_non_zero_codes)} might occur."
-        else:
-            return "No BD predicted"
-    except Exception as e:
-        return f"Error: {e}"
-
-# Streamlit app UI
-st.title("Breakdown Code Classification")
+# ---------------------
+# 🌐 Streamlit UI
+# ---------------------
+st.title("🔮 Predict Future Breakdown (24hr Ahead)")
 
 
-#...CHNAGED................................................................................................................................................
 
-if st.button("Check BD Classification"):
-    with st.spinner("Checking breakdown..."):
-        #train_ensemble_model(training_file_path, model_folder_path)  # Train the model
-        result = predict_ensemble(test_file_path, model_folder_path)  # Predict breakdown
-        
-        # Store the result in session state
-        st.session_state["bd_output"] = result
-        
-        # Update session state based on the output
-        if result != "No BD predicted":
-            st.session_state["check_bd_clicked"] = True
-        else:
-            st.session_state["check_bd_clicked"] = False
-    
-    # Display the result
-    st.write(result)
-    st.success("Prediction complete!")
-
+if st.button("Predict Future Breakdown"):
+    if test_file_path:
+        with st.spinner("Predicting..."):
+            result = predict_future_breakdown(test_file_path, model_folder_path)
+            st.subheader("🔍 Result:")
+            st.write(result)
+            # Store the result in session state
+            st.session_state["bd_output"] = result
+            
+            # Update session state based on the output
+            if result != "No BD predicted":
+                st.session_state["check_bd_clicked"] = True
+            else:
+                st.session_state["check_bd_clicked"] = False
+    else:
+        st.warning("Please upload today's data for prediction.")
 
 
 
