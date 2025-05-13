@@ -42,7 +42,7 @@ model_folder_path = os.path.join(MAINFOLDER, "Models")
 uploaded_files = []  # List to keep track of uploaded files
 
 # Streamlit UI
-st.title("Breakdown Predictor")
+st.title("Breakdown Predictor-Sierra 2(peenya)")
 st.markdown("Upload your files, and they will be preprocessed accordingly.")
 
 
@@ -282,11 +282,11 @@ def predict_future_breakdown(test_file_path, model_path):
 # ---------------------
 # 🌐 Streamlit UI
 # ---------------------
-st.title("🔮 Predict Future Breakdown (24hr Ahead)")
+st.title("🔮 Predict Breakdown")
 
 
 
-if st.button("Predict Future Breakdown"):
+if st.button("Predict Breakdown"):
     if test_file_path:
         with st.spinner("Predicting..."):
             result = predict_future_breakdown(test_file_path, model_folder_path)
@@ -327,46 +327,6 @@ import numpy as np
 def set_random_seed(seed=42):
     np.random.seed(seed)
 
-# Define the training function
-def train_model(training_file_path):
-    def load_data(file_path):
-        df = pd.read_excel(file_path, sheet_name="Time")
-        X = df.iloc[:, 1:-2].values
-        y = df.iloc[:, -2].values
-        return X, y
-
-    def preprocess_data(X, y):
-        mask = (y <= 15)# Time to breakdown less than 72 hours
-        X_filtered = X[mask]
-        y_filtered = y[mask]
-        
-        # Use a fixed random_state to ensure reproducibility
-        X_train, X_val, y_train, y_val = train_test_split(X_filtered, y_filtered, test_size=0.01, random_state=42)
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_val_scaled = scaler.transform(X_val)
-        joblib.dump(scaler, os.path.join(model_folder_path, 'scalerfinpv1.pkl'))
-        return X_train_scaled, X_val_scaled, y_train, y_val
-
-    def build_model(input_shape):
-        model = Sequential()
-        model.add(Dense(128, input_dim=input_shape, activation='relu'))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dense(32, activation='relu'))
-        model.add(Dense(1, activation='linear'))
-        model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mae'])
-        return model
-
-    # Set random seed for reproducibility
-    set_random_seed()
-
-    X, y = load_data(training_file_path)
-    X_train, X_val, y_train, y_val = preprocess_data(X, y)
-    model = build_model(X_train.shape[1])
-
-    #early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=100, batch_size=32)
-    model.save(os.path.join(model_folder_path, 'trained_modelFINpv1.h5'))
 
 # Define the prediction function
 def predict_time(test_file_path):
