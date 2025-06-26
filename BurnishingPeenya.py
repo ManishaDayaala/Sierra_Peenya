@@ -465,59 +465,7 @@ def set_random_seed(seed=42):
     np.random.seed(seed)
     tf.random.set_seed(seed)
 
-# Function to train the LSTM autoencoder model
-def train_lstm_autoencoder_model(training_file_path, model_folder_path):
-    set_random_seed()
 
-    # Load and preprocess training data
-    df = pd.read_excel(training_file_path)
-    #df = df.dropna()
-
-    
-    column_names_train = df.columns[3:-1]
-    X = df[[col for col in column_names_train if not col.endswith(('_d2', '_t2'))]]
-
-    # Normalize data
-    scaler = MinMaxScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    # Save the scaler
-    joblib.dump(scaler, os.path.join(model_folder_path, "lstm_auto_scaler.pkl"))
-
-    # Reshape to 3D for LSTM (samples, time_steps, features)
-    TIME_STEPS = 10
-    def create_sequences(data, time_steps=TIME_STEPS):
-        seqs = []
-        for i in range(len(data) - time_steps):
-            seqs.append(data[i:i + time_steps])
-        return np.array(seqs)
-    
-    X_seq = create_sequences(X_scaled)
-
-    # Define LSTM Autoencoder model
-    inputs = Input(shape=(TIME_STEPS, X_seq.shape[2]))
-    encoded = LSTM(64, activation="relu", return_sequences=False)(inputs)
-    decoded = RepeatVector(TIME_STEPS)(encoded)
-    decoded = LSTM(64, activation="relu", return_sequences=True)(decoded)
-    decoded = TimeDistributed(Dense(X_seq.shape[2]))(decoded)
-
-    autoencoder = Model(inputs, decoded)
-    autoencoder.compile(optimizer="adam", loss=tf.keras.losses.MeanSquaredError())
-
-    # Train the model
-    autoencoder.fit(X_seq, X_seq, epochs=20, batch_size=64, shuffle=True)
-
-    # Save model
-    autoencoder.save(os.path.join(model_folder_path, "lstm_auto_model.h5"))
-
-    st.success("LSTM Autoencoder training completed and model saved!")
-
-import os
-
-import numpy as np
-import joblib
-import streamlit as st
-from tensorflow.keras.models import load_model
 
 def predict_lstm_autoencoder(test_file_path, model_folder_path):
     set_random_seed()
