@@ -128,8 +128,8 @@ def process_all_files():
 
     # List of 12 unique asset names
     assets_list = [
-        "SCP Coolant MDE", "SCP Coolant PDE","SCP Hydraulic PDE",
-        "SCP Hydraulic Pump MDE", "Ball Nut Bearing DE", "SCP Sierra Machine  MDE", 
+        "SCP Coolant MDE ", "SCP Coolant PDE ","SCP Hydraulic PDE ",
+        "SCP Hydraulic Pump MDE ", "Ball Nut Bearing DE", "SCP Sierra Machine  MDE", 
         "SCP Sierra Machine Spindle DE"]
 
 
@@ -657,6 +657,9 @@ else:
         # Load Excel files
         test_df = pd.read_excel(test_file_path)
         threshold_df = pd.read_excel(threshold_file_path)
+
+        test_df.columns = test_df.columns.str.replace(r'\s+_', '_', regex=True).str.strip() ############ stripping the extra spaces
+
 
         if test_df.empty:
             st.warning("NO DATA in the test file.")
