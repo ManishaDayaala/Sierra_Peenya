@@ -332,12 +332,13 @@ def predict_time(test_file_path):
         return df, X_test, serial_numbers, times
 
     def preprocess_test_data(X_test):
-        scaler = joblib.load(os.path.join(model_folder_path, 'scalerfinpv1.pkl'))
+        scaler = joblib.load(os.path.join(model_folder_path, 'scaler_time.pkl'))
+        
         X_test_scaled = scaler.transform(X_test)
         return X_test_scaled
 
     def predict_time_to_breakdown(X_test_scaled):
-        model = load_model(os.path.join(model_folder_path, 'trained_modelFINpv1.h5'))
+        model = load_model(os.path.join(model_folder_path, 'time_trained.h5'))
         predictions = model.predict(X_test_scaled)
         return predictions
         
@@ -568,7 +569,7 @@ def predict_lstm_autoencoder(test_file_path, model_folder_path):
                 sensor_dict[sensor_id]["params"].add(feature_name)
 
     # Filter only sensors with anomaly count > 30
-    filtered_dict = {sensor: info for sensor, info in sensor_dict.items() if info["count"] > 5}
+    filtered_dict = {sensor: info for sensor, info in sensor_dict.items() if info["count"] > 1}
 
     if not filtered_dict:
         st.session_state["check_bd_clicked"] = False
